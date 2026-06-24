@@ -1,0 +1,471 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────────────────────
+// USERS
+// Credencial de acesso ao sistema
+// Um user pode ser agente em um ou mais tenants
+// ─────────────────────────────────────────────────────────────
+model User {
+  id        String    @id @default(uuid())
+  name      String
+  email     String    @unique
+  password  String
+  avatar    String?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  agents    Agent[]   // perfis de atendente nos tenants
+
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────────────────────
+// TENANTS
+// ─────────────────────────────────────────────────────────────
+model Tenant {
+  id                String          @id @default(uuid())
+  name              String
+  slug              String          @unique
+  isActive          Boolean         @default(true)
+  plan              Plan            @default(BASIC)
+  evolutionInstance String?
+  evolutionStatus   EvolutionStatus @default(DISCONNECTED)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  settings  TenantSettings?
+  agents    Agent[]
+  sectors   Sector[]
+  contacts  Contact[]
+  tickets   Ticket[]
+  tags      Tag[]
+  roles     Role[]
+  groups    Group[]
+
+  @@map("tenants")
+}
+
+model TenantSettings {
+  id                   String  @id @default(uuid())
+  tenantId             String  @unique
+  tenant               Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  welcomeMessage       String  @default("Olá! Como podemos te ajudar? 😊")
+  menuMessage          String  @default("Escolha uma opção:")
+  transferMessage      String  @default("Aguarde, estamos transferindo seu atendimento...")
+  closingMessage       String  @default("Atendimento encerrado. Obrigado! 😊")
+  offlineMessage       String  @default("No momento estamos fora do horário de atendimento.")
+  businessHoursEnabled Boolean @default(false)
+  businessHoursStart   String  @default("08:00")
+  businessHoursEnd     String  @default("18:00")
+  businessDays         Int[]   @default([1, 2, 3, 4, 5])
+  inactivityTimeout    Int     @default(24)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("tenant_settings")
+}
+
+// ─────────────────────────────────────────────────────────────
+// RBAC — PERMISSIONS
+// ─────────────────────────────────────────────────────────────
+model Permission {
+  id          String  @id @default(uuid())
+  key         String  @unique
+  resource    String
+  action      String
+  description String?
+
+  roles       RolePermission[]
+
+  @@index([resource])
+  @@map("permissions")
+}
+
+// ─────────────────────────────────────────────────────────────
+// RBAC — ROLES
+// ─────────────────────────────────────────────────────────────
+model Role {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  isDefault   Boolean  @default(false)
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  permissions RolePermission[]
+  agents      AgentRole[]
+  groups      GroupRole[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("roles")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// ─────────────────────────────────────────────────────────────
+// RBAC — GROUPS
+// ─────────────────────────────────────────────────────────────
+model Group {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  agents      AgentGroup[]
+  roles       GroupRole[]
+  sectors     GroupSector[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("groups")
+}
+
+model GroupRole {
+  groupId String
+  roleId  String
+  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  role    Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, roleId])
+  @@map("group_roles")
+}
+
+model GroupSector {
+  groupId  String
+  sectorId String
+  group    Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  sector   Sector @relation(fields: [sectorId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, sectorId])
+  @@map("group_sectors")
+}
+
+// ─────────────────────────────────────────────────────────────
+// AGENTES
+// Perfil de atendimento de um User dentro de um Tenant
+// ─────────────────────────────────────────────────────────────
+model Agent {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Vínculo com o User (credencial de acesso)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  isActive  Boolean  @default(true)
+  isOnline  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  roles         AgentRole[]
+  groups        AgentGroup[]
+  sectors       AgentSector[]
+  tickets       Ticket[]
+  transfersFrom TicketTransfer[] @relation("TransferFrom")
+  transfersTo   TicketTransfer[] @relation("TransferTo")
+  events        TicketEvent[]
+  messages      Message[]
+
+  @@unique([tenantId, userId])  // user só pode ser agente 1x por tenant
+  @@index([tenantId])
+  @@map("agents")
+}
+
+model AgentRole {
+  agentId String
+  roleId  String
+  agent   Agent  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  role    Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([agentId, roleId])
+  @@map("agent_roles")
+}
+
+model AgentGroup {
+  agentId String
+  groupId String
+  agent   Agent  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([agentId, groupId])
+  @@map("agent_groups")
+}
+
+model AgentSector {
+  agentId  String
+  sectorId String
+  agent    Agent  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  sector   Sector @relation(fields: [sectorId], references: [id], onDelete: Cascade)
+
+  @@id([agentId, sectorId])
+  @@map("agent_sectors")
+}
+
+// ─────────────────────────────────────────────────────────────
+// SETORES
+// ─────────────────────────────────────────────────────────────
+model Sector {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  color       String   @default("#6366f1")
+  menuOption  Int
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  agents      AgentSector[]
+  groups      GroupSector[]
+  tickets     Ticket[]
+  transfersTo TicketTransfer[]
+
+  @@unique([tenantId, menuOption])
+  @@index([tenantId])
+  @@map("sectors")
+}
+
+// ─────────────────────────────────────────────────────────────
+// CONTATOS
+// ─────────────────────────────────────────────────────────────
+model Contact {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  phone     String
+  name      String?
+  email     String?
+  avatar    String?
+  isBlocked Boolean  @default(false)
+  botState  BotState @default(IDLE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tickets   Ticket[]
+
+  @@unique([tenantId, phone])
+  @@index([tenantId])
+  @@map("contacts")
+}
+
+// ─────────────────────────────────────────────────────────────
+// TICKETS
+// ─────────────────────────────────────────────────────────────
+model Ticket {
+  id            String       @id @default(uuid())
+  tenantId      String
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  protocol      String
+  status        TicketStatus @default(PENDING)
+  priority      Priority     @default(NORMAL)
+  subject       String?
+  closedAt      DateTime?
+  lastMessageAt DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  contactId String
+  contact   Contact @relation(fields: [contactId], references: [id])
+
+  sectorId String?
+  sector   Sector? @relation(fields: [sectorId], references: [id])
+
+  agentId String?
+  agent   Agent?  @relation(fields: [agentId], references: [id])
+
+  messages  Message[]
+  transfers TicketTransfer[]
+  events    TicketEvent[]
+  tags      TicketTag[]
+
+  @@unique([tenantId, protocol])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, agentId])
+  @@index([tenantId, sectorId])
+  @@map("tickets")
+}
+
+// ─────────────────────────────────────────────────────────────
+// MENSAGENS
+// ─────────────────────────────────────────────────────────────
+model Message {
+  id         String      @id @default(uuid())
+  tenantId   String
+  ticketId   String
+  ticket     Ticket      @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  agentId    String?
+  agent      Agent?      @relation(fields: [agentId], references: [id])
+
+  content    String?     @db.Text
+  type       MessageType @default(TEXT)
+  mediaUrl   String?
+  mediaName  String?
+  fromMe     Boolean     @default(false)
+  whatsappId String?     @unique
+  createdAt  DateTime    @default(now())
+
+  @@index([ticketId])
+  @@index([tenantId])
+  @@map("messages")
+}
+
+// ─────────────────────────────────────────────────────────────
+// TRANSFERÊNCIAS
+// ─────────────────────────────────────────────────────────────
+model TicketTransfer {
+  id           String   @id @default(uuid())
+  tenantId     String
+  ticketId     String
+  ticket       Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  fromAgentId  String?
+  fromAgent    Agent?   @relation("TransferFrom", fields: [fromAgentId], references: [id])
+  toAgentId    String?
+  toAgent      Agent?   @relation("TransferTo", fields: [toAgentId], references: [id])
+  fromSectorId String?
+  toSectorId   String?
+  toSector     Sector?  @relation(fields: [toSectorId], references: [id])
+  reason       String?
+  createdAt    DateTime @default(now())
+
+  @@index([ticketId])
+  @@index([tenantId])
+  @@map("ticket_transfers")
+}
+
+// ─────────────────────────────────────────────────────────────
+// EVENTOS (timeline)
+// ─────────────────────────────────────────────────────────────
+model TicketEvent {
+  id          String          @id @default(uuid())
+  tenantId    String
+  ticketId    String
+  ticket      Ticket          @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  agentId     String?
+  agent       Agent?          @relation(fields: [agentId], references: [id])
+  type        TicketEventType
+  description String?
+  createdAt   DateTime        @default(now())
+
+  @@index([ticketId])
+  @@map("ticket_events")
+}
+
+// ─────────────────────────────────────────────────────────────
+// TAGS
+// ─────────────────────────────────────────────────────────────
+model Tag {
+  id       String    @id @default(uuid())
+  tenantId String
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name     String
+  color    String    @default("#6366f1")
+  tickets  TicketTag[]
+
+  @@unique([tenantId, name])
+  @@map("tags")
+}
+
+model TicketTag {
+  ticketId String
+  tagId    String
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  tag      Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([ticketId, tagId])
+  @@map("ticket_tags")
+}
+
+// ─────────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────────
+enum Plan {
+  BASIC
+  PRO
+  ENTERPRISE
+}
+
+enum EvolutionStatus {
+  DISCONNECTED
+  CONNECTING
+  CONNECTED
+}
+
+enum TicketStatus {
+  PENDING
+  WAITING_BOT
+  OPEN
+  TRANSFERRED
+  RESOLVED
+  CLOSED
+}
+
+enum Priority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+  STICKER
+  LOCATION
+  CONTACT
+  SYSTEM
+}
+
+enum BotState {
+  IDLE
+  WAITING_MENU
+  IN_TICKET
+}
+
+enum TicketEventType {
+  CREATED
+  ASSUMED
+  TRANSFERRED
+  RESOLVED
+  CLOSED
+  REOPENED
+  NOTE
+  TAG_ADDED
+  TAG_REMOVED
+  PRIORITY_CHANGED
+}

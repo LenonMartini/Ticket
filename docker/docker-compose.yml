@@ -1,0 +1,122 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────
+# Sobe apenas a infraestrutura.
+# API (NestJS) e frontend (Vue) rodam local com npm run dev.
+#
+# Para subir:  cd docker && docker compose up -d
+# Para parar:  cd docker && docker compose down
+# ─────────────────────────────────────────────────────────────
+
+services:
+  # ─────────────────────────────────────────
+  # PostgreSQL — ticket_db | evolution_db | n8n_db
+  # ─────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: ticket_postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432" # acessível em localhost:5432 para a API local
+    environment:
+      POSTGRES_DB: ticket_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - ticket_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ticket_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────
+  # Redis — filas Bull (API) + cache Evolution + n8n
+  # ─────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: ticket_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379" # acessível em localhost:6379 para a API local
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    networks:
+      - ticket_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────
+  # Evolution API v2
+  # ─────────────────────────────────────────
+  evolution-api:
+    image: atendai/evolution-api:v2.2.3
+    container_name: evolution_api
+    restart: unless-stopped
+    ports:
+      - "8080:8080" # manager: http://localhost:8080/manager
+    env_file:
+      - ../evolution/.env
+    volumes:
+      - evolution_instances:/evolution/instances
+    networks:
+      - ticket_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ─────────────────────────────────────────
+  # n8n — automação do bot WhatsApp
+  # ─────────────────────────────────────────
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: ticket_n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678" # painel: http://localhost:5678
+    environment:
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n_db
+      - DB_POSTGRESDB_USER=${POSTGRES_USER}
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=168
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
+      - GENERIC_TIMEZONE=America/Sao_Paulo
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - ticket_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+# ─────────────────────────────────────────
+volumes:
+  postgres_data:
+  redis_data:
+  evolution_instances:
+  n8n_data:
+
+networks:
+  ticket_network:
+    name: ticket_network
+    driver: bridge
