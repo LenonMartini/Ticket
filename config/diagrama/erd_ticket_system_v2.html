@@ -1,0 +1,428 @@
+
+<style>
+#erd { width: 100%; overflow-x: auto; }
+#erd svg { max-width: 100%; }
+#erd svg.erDiagram .divider path { stroke-opacity: 0.5; }
+#erd svg.erDiagram .row-rect-odd path,
+#erd svg.erDiagram .row-rect-odd rect,
+#erd svg.erDiagram .row-rect-even path,
+#erd svg.erDiagram .row-rect-even rect { stroke: none !important; }
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-lg);
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+.legend-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+}
+.section-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  margin: 0 0 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--color-border-tertiary);
+}
+</style>
+
+<div class="section-label">Diagrama entidade-relacionamento — v2</div>
+<div id="erd"></div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#7F77DD"></div> Multi-tenancy</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#1D9E75"></div> Usuários & acesso</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#378ADD"></div> RBAC</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#EF9F27"></div> Tickets & atendimento</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#D85A30"></div> Produtos & estoque</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#D4537E"></div> Evolution (WhatsApp)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#639922"></div> N8N & bot</div>
+</div>
+
+<script type="module">
+import mermaid from 'https://esm.sh/mermaid@11/dist/mermaid.esm.min.mjs';
+const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+await document.fonts.ready;
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'base',
+  fontFamily: '"Anthropic Sans", sans-serif',
+  themeVariables: {
+    darkMode: dark,
+    fontSize: '12px',
+    fontFamily: '"Anthropic Sans", sans-serif',
+    lineColor: dark ? '#9c9a92' : '#73726c',
+    textColor: dark ? '#c2c0b6' : '#3d3d3a',
+    primaryColor: dark ? '#3C3489' : '#EEEDFE',
+    primaryBorderColor: dark ? '#AFA9EC' : '#534AB7',
+    primaryTextColor: dark ? '#CECBF6' : '#26215C',
+  },
+});
+
+const diagram = `erDiagram
+
+  TENANTS {
+    uuid id PK
+    string name
+    string slug
+    string plan
+    boolean active
+    jsonb settings
+    timestamp created_at
+  }
+
+  USERS {
+    uuid id PK
+    uuid tenant_id FK
+    string name
+    string email
+    string password_hash
+    string avatar_url
+    boolean active
+    timestamp last_login
+    timestamp created_at
+  }
+
+  STORES {
+    uuid id PK
+    uuid tenant_id FK
+    string name
+    string phone
+    string address
+    jsonb settings
+    boolean active
+    timestamp created_at
+  }
+
+  DEPARTMENTS {
+    uuid id PK
+    uuid tenant_id FK
+    uuid store_id FK
+    string name
+    string description
+    boolean active
+    timestamp created_at
+  }
+
+  ROLES {
+    uuid id PK
+    uuid tenant_id FK
+    string name
+    string description
+    boolean is_system
+    timestamp created_at
+  }
+
+  PERMISSIONS {
+    uuid id PK
+    string resource
+    string action
+    string description
+  }
+
+  ROLE_PERMISSIONS {
+    uuid role_id FK
+    uuid permission_id FK
+  }
+
+  USER_ROLES {
+    uuid user_id FK
+    uuid role_id FK
+    uuid store_id FK
+    uuid department_id FK
+    timestamp assigned_at
+  }
+
+  CONTACTS {
+    uuid id PK
+    uuid tenant_id FK
+    string name
+    string phone
+    string email
+    string avatar_url
+    jsonb extra_data
+    timestamp created_at
+  }
+
+  EVOLUTION_INSTANCES {
+    uuid id PK
+    uuid tenant_id FK
+    uuid store_id FK
+    string instance_name
+    string phone_number
+    string api_key
+    string status
+    string webhook_url
+    string qr_code
+    timestamp connected_at
+    timestamp created_at
+  }
+
+  TICKETS {
+    uuid id PK
+    uuid tenant_id FK
+    uuid store_id FK
+    uuid department_id FK
+    uuid contact_id FK
+    uuid assigned_to FK
+    uuid evolution_instance_id FK
+    uuid bot_session_id FK
+    string channel
+    string status
+    string priority
+    string subject
+    boolean is_bot_active
+    timestamp opened_at
+    timestamp closed_at
+    timestamp last_message_at
+  }
+
+  MESSAGES {
+    uuid id PK
+    uuid ticket_id FK
+    uuid sender_user_id FK
+    string sender_type
+    string content
+    string type
+    string media_url
+    string evolution_msg_id
+    boolean read
+    timestamp sent_at
+  }
+
+  TICKET_TAGS {
+    uuid id PK
+    uuid tenant_id FK
+    string name
+    string color
+  }
+
+  TICKET_TAG_MAP {
+    uuid ticket_id FK
+    uuid tag_id FK
+  }
+
+  TICKET_HISTORY {
+    uuid id PK
+    uuid ticket_id FK
+    uuid user_id FK
+    string action
+    jsonb changes
+    timestamp created_at
+  }
+
+  N8N_WORKFLOWS {
+    uuid id PK
+    uuid tenant_id FK
+    uuid evolution_instance_id FK
+    string n8n_workflow_id
+    string name
+    string trigger_type
+    string trigger_event
+    boolean active
+    jsonb settings
+    timestamp created_at
+  }
+
+  BOT_SESSIONS {
+    uuid id PK
+    uuid tenant_id FK
+    uuid contact_id FK
+    uuid evolution_instance_id FK
+    uuid n8n_workflow_id FK
+    uuid ticket_id FK
+    string status
+    string current_step
+    jsonb context
+    integer interactions_count
+    timestamp started_at
+    timestamp last_interaction_at
+    timestamp finished_at
+  }
+
+  N8N_EXECUTIONS {
+    uuid id PK
+    uuid n8n_workflow_id FK
+    uuid bot_session_id FK
+    uuid ticket_id FK
+    string n8n_execution_id
+    string status
+    string trigger_event
+    jsonb input_data
+    jsonb output_data
+    string error_message
+    integer duration_ms
+    timestamp started_at
+    timestamp finished_at
+  }
+
+  PRODUCT_CATEGORIES {
+    uuid id PK
+    uuid tenant_id FK
+    uuid parent_id FK
+    string name
+    string description
+    boolean active
+  }
+
+  PRODUCTS {
+    uuid id PK
+    uuid tenant_id FK
+    uuid category_id FK
+    string sku
+    string name
+    string description
+    decimal price
+    decimal cost
+    string unit
+    boolean active
+    timestamp created_at
+  }
+
+  STOCK {
+    uuid id PK
+    uuid product_id FK
+    uuid store_id FK
+    decimal quantity
+    decimal min_quantity
+    decimal max_quantity
+    timestamp updated_at
+  }
+
+  STOCK_MOVEMENTS {
+    uuid id PK
+    uuid product_id FK
+    uuid store_id FK
+    uuid user_id FK
+    uuid reference_id FK
+    string reference_type
+    string type
+    decimal quantity
+    decimal unit_cost
+    string notes
+    timestamp created_at
+  }
+
+  NFE_IMPORTS {
+    uuid id PK
+    uuid tenant_id FK
+    uuid store_id FK
+    uuid user_id FK
+    string access_key
+    string supplier_name
+    string supplier_cnpj
+    decimal total_value
+    string status
+    jsonb raw_xml
+    timestamp issued_at
+    timestamp imported_at
+  }
+
+  NFE_ITEMS {
+    uuid id PK
+    uuid nfe_id FK
+    uuid product_id FK
+    string product_code
+    string description
+    decimal quantity
+    decimal unit_price
+    decimal total_price
+  }
+
+  TENANTS ||--o{ USERS : "tem"
+  TENANTS ||--o{ STORES : "possui"
+  TENANTS ||--o{ DEPARTMENTS : "tem"
+  TENANTS ||--o{ ROLES : "define"
+  TENANTS ||--o{ CONTACTS : "tem"
+  TENANTS ||--o{ EVOLUTION_INSTANCES : "opera"
+  TENANTS ||--o{ PRODUCTS : "possui"
+  TENANTS ||--o{ PRODUCT_CATEGORIES : "tem"
+  TENANTS ||--o{ NFE_IMPORTS : "importa"
+  TENANTS ||--o{ N8N_WORKFLOWS : "configura"
+
+  STORES ||--o{ DEPARTMENTS : "agrupa"
+  STORES ||--o{ EVOLUTION_INSTANCES : "usa"
+  STORES ||--o{ TICKETS : "recebe"
+  STORES ||--o{ STOCK : "controla"
+  STORES ||--o{ STOCK_MOVEMENTS : "registra"
+  STORES ||--o{ NFE_IMPORTS : "recebe"
+
+  DEPARTMENTS ||--o{ TICKETS : "atende"
+  DEPARTMENTS ||--o{ USER_ROLES : "atribui"
+
+  ROLES ||--o{ ROLE_PERMISSIONS : "tem"
+  ROLES ||--o{ USER_ROLES : "atribuido"
+  PERMISSIONS ||--o{ ROLE_PERMISSIONS : "em"
+
+  USERS ||--o{ USER_ROLES : "recebe"
+  USERS ||--o{ TICKETS : "atende"
+  USERS ||--o{ MESSAGES : "envia"
+  USERS ||--o{ TICKET_HISTORY : "registra"
+  USERS ||--o{ STOCK_MOVEMENTS : "realiza"
+  USERS ||--o{ NFE_IMPORTS : "importa"
+
+  CONTACTS ||--o{ TICKETS : "abre"
+  CONTACTS ||--o{ BOT_SESSIONS : "inicia"
+
+  EVOLUTION_INSTANCES ||--o{ TICKETS : "gera"
+  EVOLUTION_INSTANCES ||--o{ BOT_SESSIONS : "recebe"
+  EVOLUTION_INSTANCES ||--o{ N8N_WORKFLOWS : "dispara"
+
+  N8N_WORKFLOWS ||--o{ BOT_SESSIONS : "executa"
+  N8N_WORKFLOWS ||--o{ N8N_EXECUTIONS : "registra"
+
+  BOT_SESSIONS ||--o{ N8N_EXECUTIONS : "gera"
+  BOT_SESSIONS ||--|| TICKETS : "escalona"
+
+  TICKETS ||--o{ MESSAGES : "contem"
+  TICKETS ||--o{ TICKET_TAG_MAP : "tem"
+  TICKETS ||--o{ TICKET_HISTORY : "registra"
+  TICKET_TAGS ||--o{ TICKET_TAG_MAP : "usada"
+
+  PRODUCTS ||--o{ STOCK : "tem"
+  PRODUCTS ||--o{ STOCK_MOVEMENTS : "movimenta"
+  PRODUCTS ||--o{ NFE_ITEMS : "referencia"
+  PRODUCT_CATEGORIES ||--o{ PRODUCTS : "classifica"
+
+  NFE_IMPORTS ||--o{ NFE_ITEMS : "contem"
+  STOCK_MOVEMENTS }o--o| NFE_IMPORTS : "origina"
+`;
+
+const { svg } = await mermaid.render('erd-svg', diagram);
+document.getElementById('erd').innerHTML = svg;
+
+document.querySelectorAll('#erd svg.erDiagram .node').forEach(node => {
+  const firstPath = node.querySelector('path[d]');
+  if (!firstPath) return;
+  const d = firstPath.getAttribute('d');
+  const nums = d.match(/-?[\d.]+/g)?.map(Number);
+  if (!nums || nums.length < 8) return;
+  const xs = [nums[0], nums[2], nums[4], nums[6]];
+  const ys = [nums[1], nums[3], nums[5], nums[7]];
+  const x = Math.min(...xs), y = Math.min(...ys);
+  const w = Math.max(...xs) - x, h = Math.max(...ys) - y;
+  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  rect.setAttribute('x', x); rect.setAttribute('y', y);
+  rect.setAttribute('width', w); rect.setAttribute('height', h);
+  rect.setAttribute('rx', '8');
+  for (const a of ['fill', 'stroke', 'stroke-width', 'class', 'style']) {
+    if (firstPath.hasAttribute(a)) rect.setAttribute(a, firstPath.getAttribute(a));
+  }
+  firstPath.replaceWith(rect);
+});
+
+document.querySelectorAll('#erd svg.erDiagram .row-rect-odd path, #erd svg.erDiagram .row-rect-even path').forEach(p => {
+  p.setAttribute('stroke', 'none');
+});
+</script>
