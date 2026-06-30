@@ -8,7 +8,6 @@ const prisma = new PrismaClient({ adapter });
 
 // ─────────────────────────────────────────────────────────────
 // PERMISSÕES ATÔMICAS
-// Formato: recurso:ação
 // ─────────────────────────────────────────────────────────────
 
 const PERMISSIONS = [
@@ -79,7 +78,6 @@ const PERMISSIONS = [
     action: 'bot_control',
     description: 'Ativar/desativar bot num ticket',
   },
-
   // ── Mensagens ─────────────────────────────────────────────
   {
     key: 'messages:read',
@@ -99,7 +97,6 @@ const PERMISSIONS = [
     action: 'send_internal',
     description: 'Enviar notas internas (não chegam ao cliente)',
   },
-
   // ── Contatos ──────────────────────────────────────────────
   {
     key: 'contacts:read',
@@ -131,7 +128,6 @@ const PERMISSIONS = [
     action: 'delete',
     description: 'Remover contatos',
   },
-
   // ── Usuários ──────────────────────────────────────────────
   {
     key: 'users:read',
@@ -157,7 +153,6 @@ const PERMISSIONS = [
     action: 'delete',
     description: 'Remover usuários',
   },
-
   // ── Lojas ─────────────────────────────────────────────────
   {
     key: 'stores:read',
@@ -183,7 +178,6 @@ const PERMISSIONS = [
     action: 'delete',
     description: 'Remover lojas',
   },
-
   // ── Departamentos ─────────────────────────────────────────
   {
     key: 'departments:read',
@@ -209,8 +203,7 @@ const PERMISSIONS = [
     action: 'delete',
     description: 'Remover departamentos',
   },
-
-  // ── Roles & Permissões ────────────────────────────────────
+  // ── Roles ─────────────────────────────────────────────────
   {
     key: 'roles:read',
     resource: 'roles',
@@ -235,7 +228,6 @@ const PERMISSIONS = [
     action: 'delete',
     description: 'Remover roles',
   },
-
   // ── Produtos ──────────────────────────────────────────────
   {
     key: 'products:read',
@@ -261,7 +253,6 @@ const PERMISSIONS = [
     action: 'delete',
     description: 'Remover produtos',
   },
-
   // ── Estoque ───────────────────────────────────────────────
   {
     key: 'stock:read',
@@ -281,7 +272,6 @@ const PERMISSIONS = [
     action: 'transfer',
     description: 'Transferir estoque entre lojas',
   },
-
   // ── NF-e ──────────────────────────────────────────────────
   {
     key: 'nfe:read',
@@ -301,7 +291,6 @@ const PERMISSIONS = [
     action: 'cancel',
     description: 'Cancelar NF-e importada',
   },
-
   // ── N8N / Bot ─────────────────────────────────────────────
   {
     key: 'n8n:read',
@@ -315,8 +304,7 @@ const PERMISSIONS = [
     action: 'manage',
     description: 'Criar/editar/ativar workflows',
   },
-
-  // ── Evolution / WhatsApp ──────────────────────────────────
+  // ── WhatsApp ──────────────────────────────────────────────
   {
     key: 'whatsapp:read',
     resource: 'whatsapp',
@@ -335,7 +323,6 @@ const PERMISSIONS = [
     action: 'manage',
     description: 'Criar/remover instâncias',
   },
-
   // ── Relatórios ────────────────────────────────────────────
   {
     key: 'reports:read',
@@ -349,7 +336,6 @@ const PERMISSIONS = [
     action: 'export',
     description: 'Exportar relatórios',
   },
-
   // ── Configurações ─────────────────────────────────────────
   {
     key: 'settings:read',
@@ -367,7 +353,6 @@ const PERMISSIONS = [
 
 // ─────────────────────────────────────────────────────────────
 // ROLES PADRÃO
-// Toda role marcada como isSystem = true não pode ser deletada
 // ─────────────────────────────────────────────────────────────
 
 const DEFAULT_ROLES: Record<
@@ -379,7 +364,6 @@ const DEFAULT_ROLES: Record<
     isDefault: false,
     permissions: PERMISSIONS.map((p) => p.key),
   },
-
   Supervisor: {
     description: 'Gerencia equipes, visualiza todos os tickets e relatórios',
     isDefault: false,
@@ -413,7 +397,6 @@ const DEFAULT_ROLES: Record<
       'settings:read',
     ],
   },
-
   Atendente: {
     description: 'Atende tickets do próprio setor',
     isDefault: true,
@@ -430,7 +413,6 @@ const DEFAULT_ROLES: Record<
       'contacts:read',
     ],
   },
-
   'Gestor de Estoque': {
     description: 'Gerencia produtos, estoque e importação de NF-e',
     isDefault: false,
@@ -449,7 +431,6 @@ const DEFAULT_ROLES: Record<
       'reports:export',
     ],
   },
-
   Visualizador: {
     description: 'Acesso somente leitura (auditoria)',
     isDefault: false,
@@ -604,41 +585,48 @@ async function main() {
 
   // ── 6. Usuário admin demo ─────────────────────────────────
   console.log('👤 Criando usuário admin...');
-  const passwordHash = await bcrypt.hash('Admin@123', 12);
+  const passwordHash = await bcrypt.hash('@suporte', 12);
 
   const adminUser = await prisma.user.upsert({
-    where: { tenantId_email: { tenantId: tenant.id, email: 'admin@demo.com' } },
+    where: {
+      tenantId_email: { tenantId: tenant.id, email: 'suporte@gmail.com' },
+    },
     update: {},
     create: {
       tenantId: tenant.id,
-      name: 'Administrador Demo',
-      email: 'admin@demo.com',
+      name: 'Suporte',
+      email: 'suporte@gmail.com',
       passwordHash,
       isActive: true,
     },
   });
 
-  // Busca a role Administrador e vincula ao usuário
   const adminRole = await prisma.role.findFirstOrThrow({
     where: { tenantId: tenant.id, name: 'Administrador' },
   });
 
-  await prisma.userRole.upsert({
+  // ✅ FIX: upsert com null em @@unique composto não funciona no Prisma v7
+  // Usar findFirst + create condicional
+  const existingUserRole = await prisma.userRole.findFirst({
     where: {
-      userId_roleId_storeId_departmentId: {
-        userId: adminUser.id,
-        roleId: adminRole.id,
-        storeId: store.id,
-        departmentId: null,
-      },
-    },
-    update: {},
-    create: {
       userId: adminUser.id,
       roleId: adminRole.id,
       storeId: store.id,
+      departmentId: null,
     },
   });
+
+  if (!existingUserRole) {
+    await prisma.userRole.create({
+      data: {
+        userId: adminUser.id,
+        roleId: adminRole.id,
+        storeId: store.id,
+        // departmentId omitido = null (sem escopo de departamento)
+      },
+    });
+  }
+
   console.log(`   ✅ Usuário "${adminUser.email}" criado\n`);
 
   // ── 7. Instância Evolution demo ───────────────────────────
@@ -655,7 +643,7 @@ async function main() {
       tenantId: tenant.id,
       storeId: store.id,
       instanceName: 'demo-instance-01',
-      phoneNumber: null,
+      // phoneNumber omitido = null (conectar via QR depois)
       apiKey: 'demo-api-key-change-me',
       webhookUrl: `${process.env.API_URL ?? 'http://localhost:3000'}/webhooks/evolution/demo-instance-01`,
       status: 'DISCONNECTED',
@@ -767,7 +755,6 @@ async function main() {
       },
     });
 
-    // Saldo inicial de estoque
     await prisma.stock.upsert({
       where: { productId_storeId: { productId: p.id, storeId: store.id } },
       update: {},
@@ -788,15 +775,15 @@ async function main() {
   console.log('─'.repeat(50));
   console.log('🎉 Seed concluído com sucesso!\n');
   console.log('📌 Dados criados:');
-  console.log(`   Tenant:       ${tenant.name} (slug: "${tenant.slug}")`);
-  console.log(`   Loja:         ${store.name}`);
+  console.log(`   Tenant:        ${tenant.name} (slug: "${tenant.slug}")`);
+  console.log(`   Loja:          ${store.name}`);
   console.log(`   Departamentos: ${departments.map((d) => d.name).join(', ')}`);
-  console.log(`   Roles:        ${Object.keys(DEFAULT_ROLES).join(', ')}`);
-  console.log(`   Permissões:   ${PERMISSIONS.length}`);
-  console.log(`   Admin:        admin@demo.com / Admin@123`);
-  console.log(`   Evolution:    demo-instance-01`);
-  console.log(`   N8N workflow: Atendimento Inicial`);
-  console.log(`   Produtos:     ${products.length} (com saldo 0)`);
+  console.log(`   Roles:         ${Object.keys(DEFAULT_ROLES).join(', ')}`);
+  console.log(`   Permissões:    ${PERMISSIONS.length}`);
+  console.log(`   Admin:         admin@demo.com / Admin@123`);
+  console.log(`   Evolution:     demo-instance-01`);
+  console.log(`   N8N workflow:  Atendimento Inicial`);
+  console.log(`   Produtos:      ${products.length} (com saldo 0)`);
   console.log('─'.repeat(50));
 }
 

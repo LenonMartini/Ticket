@@ -19,13 +19,13 @@ enum Plan {
 }
 
 enum TicketStatus {
-  PENDING       // aguardando na fila, nenhum agente assumiu
-  BOT_ACTIVE    // bot está conduzindo o atendimento
-  OPEN          // agente assumiu
-  WAITING       // aguardando resposta do cliente
-  TRANSFERRED   // foi transferido para outro setor/agente
-  RESOLVED      // marcado como resolvido
-  CLOSED        // encerrado definitivamente
+  PENDING
+  BOT_ACTIVE
+  OPEN
+  WAITING
+  TRANSFERRED
+  RESOLVED
+  CLOSED
 }
 
 enum Priority {
@@ -50,47 +50,47 @@ enum MessageType {
   STICKER
   LOCATION
   CONTACT_CARD
-  SYSTEM        // mensagens internas de sistema (ex: "ticket assumido por X")
-  NOTE          // nota interna (não chega ao cliente)
+  SYSTEM
+  NOTE
 }
 
 enum SenderType {
-  CONTACT   // mensagem do cliente
-  AGENT     // mensagem do agente
-  BOT       // mensagem enviada pelo bot/n8n
-  SYSTEM    // evento de sistema
+  CONTACT
+  AGENT
+  BOT
+  SYSTEM
 }
 
 enum StockMovementType {
-  IN          // entrada manual
-  OUT         // saída manual
-  IN_NFE      // entrada por NF-e
-  OUT_SALE    // saída por venda
-  ADJUSTMENT  // ajuste de inventário
-  TRANSFER    // transferência entre lojas
+  IN
+  OUT
+  IN_NFE
+  OUT_SALE
+  ADJUSTMENT
+  TRANSFER
 }
 
 enum NfeStatus {
-  PENDING    // importada, aguardando processamento
-  PROCESSED  // itens processados e estoque atualizado
-  ERROR      // erro no processamento
-  CANCELLED  // NF-e cancelada
+  PENDING
+  PROCESSED
+  ERROR
+  CANCELLED
 }
 
 enum BotSessionStatus {
-  ACTIVE      // bot conduzindo ativamente
-  WAITING     // aguardando resposta do cliente
-  ESCALATED   // escalonado para agente humano
-  FINISHED    // fluxo concluído sem escalonamento
-  ABANDONED   // cliente não respondeu (timeout)
+  ACTIVE
+  WAITING
+  ESCALATED
+  FINISHED
+  ABANDONED
 }
 
 enum N8nTriggerType {
-  WEBHOOK           // chamada HTTP externa
-  MESSAGE_RECEIVED  // mensagem recebida na instância
-  TICKET_CREATED    // ticket criado
-  TICKET_CLOSED     // ticket encerrado
-  SCHEDULED         // agendado (cron)
+  WEBHOOK
+  MESSAGE_RECEIVED
+  TICKET_CREATED
+  TICKET_CLOSED
+  SCHEDULED
 }
 
 enum N8nExecutionStatus {
@@ -125,7 +125,6 @@ enum TicketEventType {
 
 // ─────────────────────────────────────────────────────────────
 // TENANTS
-// Raiz de isolamento de dados — tudo pertence a um tenant
 // ─────────────────────────────────────────────────────────────
 
 model Tenant {
@@ -159,22 +158,17 @@ model TenantSettings {
   tenantId String @unique
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  // Mensagens do bot
-  welcomeMessage   String @default("Olá! Como podemos te ajudar? 😊")
-  menuMessage      String @default("Escolha uma opção:")
-  transferMessage  String @default("Aguarde, estamos transferindo seu atendimento...")
-  closingMessage   String @default("Atendimento encerrado. Obrigado! 😊")
-  offlineMessage   String @default("No momento estamos fora do horário de atendimento.")
-
-  // Horário de atendimento
+  welcomeMessage       String  @default("Olá! Como podemos te ajudar? 😊")
+  menuMessage          String  @default("Escolha uma opção:")
+  transferMessage      String  @default("Aguarde, estamos transferindo seu atendimento...")
+  closingMessage       String  @default("Atendimento encerrado. Obrigado! 😊")
+  offlineMessage       String  @default("No momento estamos fora do horário de atendimento.")
   businessHoursEnabled Boolean @default(false)
   businessHoursStart   String  @default("08:00")
   businessHoursEnd     String  @default("18:00")
-  businessDays         Int[]   @default([1, 2, 3, 4, 5]) // 0=Dom … 6=Sáb
-
-  // Comportamento do ticket
-  inactivityTimeout    Int @default(24) // horas para fechar ticket inativo
-  maxTicketsPerAgent   Int @default(10)
+  businessDays         Int[]   @default([1, 2, 3, 4, 5])
+  inactivityTimeout    Int     @default(24)
+  maxTicketsPerAgent   Int     @default(10)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -184,29 +178,28 @@ model TenantSettings {
 
 // ─────────────────────────────────────────────────────────────
 // USERS
-// Credencial de acesso — um user pode ser agente em N tenants
 // ─────────────────────────────────────────────────────────────
 
 model User {
-  id           String   @id @default(uuid())
+  id           String    @id @default(uuid())
   tenantId     String
-  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   name         String
   email        String
   passwordHash String
   avatarUrl    String?
-  isActive     Boolean  @default(true)
+  isActive     Boolean   @default(true)
   lastLogin    DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  userRoles       UserRole[]
-  tickets         Ticket[]         @relation("AssignedTickets")
-  messages        Message[]
-  ticketEvents    TicketEvent[]
-  stockMovements  StockMovement[]
-  nfeImports      NfeImport[]
+  userRoles      UserRole[]
+  tickets        Ticket[]        @relation("AssignedTickets")
+  messages       Message[]
+  ticketEvents   TicketEvent[]
+  stockMovements StockMovement[]
+  nfeImports     NfeImport[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -215,7 +208,6 @@ model User {
 
 // ─────────────────────────────────────────────────────────────
 // STORES
-// Uma loja/unidade dentro de um tenant
 // ─────────────────────────────────────────────────────────────
 
 model Store {
@@ -227,7 +219,7 @@ model Store {
   phone     String?
   address   String?
   isActive  Boolean  @default(true)
-  settings  Json?    // configurações extras livres
+  settings  Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -237,6 +229,7 @@ model Store {
   stocks             Stock[]
   stockMovements     StockMovement[]
   nfeImports         NfeImport[]
+  userRoles          UserRole[]          // ← campo inverso adicionado
 
   @@index([tenantId])
   @@map("stores")
@@ -244,7 +237,6 @@ model Store {
 
 // ─────────────────────────────────────────────────────────────
 // DEPARTMENTS
-// Setores de atendimento dentro de uma loja
 // ─────────────────────────────────────────────────────────────
 
 model Department {
@@ -257,12 +249,12 @@ model Department {
   name        String
   description String?
   color       String   @default("#6366f1")
-  menuOption  Int?     // posição no menu do bot
+  menuOption  Int?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  userRoles UserRole[]
+  userRoles UserRole[]  // ← campo inverso adicionado
   tickets   Ticket[]
 
   @@index([tenantId])
@@ -272,14 +264,13 @@ model Department {
 
 // ─────────────────────────────────────────────────────────────
 // RBAC — PERMISSIONS
-// Permissões atômicas globais (não pertencem a tenant)
 // ─────────────────────────────────────────────────────────────
 
 model Permission {
   id          String @id @default(uuid())
-  key         String @unique // ex: "tickets:close"
-  resource    String          // ex: "tickets"
-  action      String          // ex: "close"
+  key         String @unique
+  resource    String
+  action      String
   description String?
 
   rolePermissions RolePermission[]
@@ -299,8 +290,8 @@ model Role {
 
   name        String
   description String?
-  isSystem    Boolean  @default(false) // roles protegidas (não podem ser deletadas)
-  isDefault   Boolean  @default(false) // role atribuída automaticamente a novos usuários
+  isSystem    Boolean  @default(false)
+  isDefault   Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -324,7 +315,6 @@ model RolePermission {
 
 // ─────────────────────────────────────────────────────────────
 // RBAC — USER_ROLES
-// Vínculo contextual: user tem role X na loja Y, departamento Z
 // ─────────────────────────────────────────────────────────────
 
 model UserRole {
@@ -348,7 +338,6 @@ model UserRole {
 
 // ─────────────────────────────────────────────────────────────
 // CONTACTS
-// Clientes que entram em contato — identificados pelo telefone
 // ─────────────────────────────────────────────────────────────
 
 model Contact {
@@ -361,7 +350,7 @@ model Contact {
   email     String?
   avatarUrl String?
   isBlocked Boolean  @default(false)
-  extraData Json?    // campos customizados livres
+  extraData Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -375,19 +364,17 @@ model Contact {
 
 // ─────────────────────────────────────────────────────────────
 // EVOLUTION INSTANCES
-// Cada número de WhatsApp conectado ao tenant
-// Um tenant pode ter N instâncias (N números)
 // ─────────────────────────────────────────────────────────────
 
 model EvolutionInstance {
-  id           String          @id @default(uuid())
-  tenantId     String
-  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  storeId      String?
-  store        Store?          @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  id          String          @id @default(uuid())
+  tenantId    String
+  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  storeId     String?
+  store       Store?          @relation(fields: [storeId], references: [id], onDelete: SetNull)
 
-  instanceName String          // nome da instância na Evolution API
-  phoneNumber  String?         // número após conexão
+  instanceName String
+  phoneNumber  String?
   apiKey       String
   webhookUrl   String?
   status       EvolutionStatus @default(DISCONNECTED)
@@ -407,28 +394,27 @@ model EvolutionInstance {
 
 // ─────────────────────────────────────────────────────────────
 // N8N WORKFLOWS
-// Workflows do N8N vinculados a uma instância Evolution
 // ─────────────────────────────────────────────────────────────
 
 model N8nWorkflow {
-  id                   String         @id @default(uuid())
-  tenantId             String
-  tenant               Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  evolutionInstanceId  String?
-  evolutionInstance    EvolutionInstance? @relation(fields: [evolutionInstanceId], references: [id], onDelete: SetNull)
+  id                  String             @id @default(uuid())
+  tenantId            String
+  tenant              Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  evolutionInstanceId String?
+  evolutionInstance   EvolutionInstance? @relation(fields: [evolutionInstanceId], references: [id], onDelete: SetNull)
 
-  n8nWorkflowId        String         // ID do workflow no N8N
-  name                 String
-  description          String?
-  triggerType          N8nTriggerType @default(MESSAGE_RECEIVED)
-  triggerEvent         String?        // evento específico que dispara (ex: keyword, status)
-  isActive             Boolean        @default(true)
-  settings             Json?          // configurações extras (timeout, retry, etc.)
-  createdAt            DateTime       @default(now())
-  updatedAt            DateTime       @updatedAt
+  n8nWorkflowId String
+  name          String
+  description   String?
+  triggerType   N8nTriggerType @default(MESSAGE_RECEIVED)
+  triggerEvent  String?
+  isActive      Boolean        @default(true)
+  settings      Json?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
-  botSessions  BotSession[]
-  executions   N8nExecution[]
+  botSessions BotSession[]
+  executions  N8nExecution[]
 
   @@unique([tenantId, n8nWorkflowId])
   @@index([tenantId])
@@ -437,29 +423,27 @@ model N8nWorkflow {
 
 // ─────────────────────────────────────────────────────────────
 // BOT SESSIONS
-// Estado da sessão do bot por contato/instância
-// Guarda em qual etapa do fluxo o cliente está
 // ─────────────────────────────────────────────────────────────
 
 model BotSession {
-  id                  String           @id @default(uuid())
+  id                  String            @id @default(uuid())
   tenantId            String
   contactId           String
-  contact             Contact          @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  contact             Contact           @relation(fields: [contactId], references: [id], onDelete: Cascade)
   evolutionInstanceId String
   evolutionInstance   EvolutionInstance @relation(fields: [evolutionInstanceId], references: [id], onDelete: Cascade)
   n8nWorkflowId       String?
-  n8nWorkflow         N8nWorkflow?     @relation(fields: [n8nWorkflowId], references: [id], onDelete: SetNull)
-  ticketId            String?          @unique // criado ao escalonar para humano
-  ticket              Ticket?          @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  n8nWorkflow         N8nWorkflow?      @relation(fields: [n8nWorkflowId], references: [id], onDelete: SetNull)
+  ticketId            String?           @unique
+  ticket              Ticket?           @relation(fields: [ticketId], references: [id], onDelete: SetNull)
 
-  status             BotSessionStatus @default(ACTIVE)
-  currentStep        String?          // nó atual no fluxo do N8N
-  context            Json?            // variáveis coletadas (nome, CPF, opção escolhida…)
-  interactionsCount  Int              @default(0)
-  startedAt          DateTime         @default(now())
-  lastInteractionAt  DateTime         @default(now())
-  finishedAt         DateTime?
+  status            BotSessionStatus @default(ACTIVE)
+  currentStep       String?
+  context           Json?
+  interactionsCount Int              @default(0)
+  startedAt         DateTime         @default(now())
+  lastInteractionAt DateTime         @default(now())
+  finishedAt        DateTime?
 
   executions N8nExecution[]
 
@@ -471,26 +455,25 @@ model BotSession {
 
 // ─────────────────────────────────────────────────────────────
 // N8N EXECUTIONS
-// Histórico de cada execução de workflow
 // ─────────────────────────────────────────────────────────────
 
 model N8nExecution {
-  id              String             @id @default(uuid())
-  n8nWorkflowId   String
-  n8nWorkflow     N8nWorkflow        @relation(fields: [n8nWorkflowId], references: [id], onDelete: Cascade)
-  botSessionId    String?
-  botSession      BotSession?        @relation(fields: [botSessionId], references: [id], onDelete: SetNull)
-  ticketId        String?
+  id            String             @id @default(uuid())
+  n8nWorkflowId String
+  n8nWorkflow   N8nWorkflow        @relation(fields: [n8nWorkflowId], references: [id], onDelete: Cascade)
+  botSessionId  String?
+  botSession    BotSession?        @relation(fields: [botSessionId], references: [id], onDelete: SetNull)
+  ticketId      String?
 
-  n8nExecutionId  String?            // ID da execução no N8N (para rastreamento)
-  status          N8nExecutionStatus @default(RUNNING)
-  triggerEvent    String?
-  inputData       Json?
-  outputData      Json?
-  errorMessage    String?            @db.Text
-  durationMs      Int?
-  startedAt       DateTime           @default(now())
-  finishedAt      DateTime?
+  n8nExecutionId String?
+  status         N8nExecutionStatus @default(RUNNING)
+  triggerEvent   String?
+  inputData      Json?
+  outputData     Json?
+  errorMessage   String?            @db.Text
+  durationMs     Int?
+  startedAt      DateTime           @default(now())
+  finishedAt     DateTime?
 
   @@index([n8nWorkflowId])
   @@index([botSessionId])
@@ -502,21 +485,21 @@ model N8nExecution {
 // ─────────────────────────────────────────────────────────────
 
 model Ticket {
-  id          String        @id @default(uuid())
-  tenantId    String
-  tenant      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  storeId     String?
-  store       Store?        @relation(fields: [storeId], references: [id], onDelete: SetNull)
-  departmentId String?
-  department  Department?   @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  contactId   String
-  contact     Contact       @relation(fields: [contactId], references: [id])
-  assignedTo  String?
-  assignedUser User?        @relation("AssignedTickets", fields: [assignedTo], references: [id], onDelete: SetNull)
+  id                  String             @id @default(uuid())
+  tenantId            String
+  tenant              Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  storeId             String?
+  store               Store?             @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  departmentId        String?
+  department          Department?        @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  contactId           String
+  contact             Contact            @relation(fields: [contactId], references: [id])
+  assignedTo          String?
+  assignedUser        User?              @relation("AssignedTickets", fields: [assignedTo], references: [id], onDelete: SetNull)
   evolutionInstanceId String?
   evolutionInstance   EvolutionInstance? @relation(fields: [evolutionInstanceId], references: [id], onDelete: SetNull)
 
-  protocol      String        // número de protocolo gerado
+  protocol      String
   channel       TicketChannel @default(WHATSAPP)
   status        TicketStatus  @default(PENDING)
   priority      Priority      @default(NORMAL)
@@ -531,7 +514,7 @@ model Ticket {
   messages   Message[]
   events     TicketEvent[]
   tags       TicketTag[]
-  botSession BotSession?   // sessão de bot que originou/está vinculada
+  botSession BotSession?
 
   @@unique([tenantId, protocol])
   @@index([tenantId])
@@ -557,7 +540,7 @@ model Message {
   type           MessageType @default(TEXT)
   mediaUrl       String?
   mediaName      String?
-  evolutionMsgId String?     @unique // ID da mensagem na Evolution API (evita duplicatas)
+  evolutionMsgId String?     @unique
   isRead         Boolean     @default(false)
   sentAt         DateTime    @default(now())
 
@@ -566,7 +549,7 @@ model Message {
 }
 
 // ─────────────────────────────────────────────────────────────
-// TICKET EVENTS (timeline de auditoria)
+// TICKET EVENTS
 // ─────────────────────────────────────────────────────────────
 
 model TicketEvent {
@@ -578,7 +561,7 @@ model TicketEvent {
 
   type        TicketEventType
   description String?
-  changes     Json?           // snapshot do que mudou { from, to }
+  changes     Json?
   createdAt   DateTime        @default(now())
 
   @@index([ticketId])
@@ -615,15 +598,14 @@ model TicketTag {
 
 // ─────────────────────────────────────────────────────────────
 // PRODUCT CATEGORIES
-// Categorias hierárquicas (categoria pai → subcategorias)
 // ─────────────────────────────────────────────────────────────
 
 model ProductCategory {
-  id          String   @id @default(uuid())
+  id          String           @id @default(uuid())
   tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   parentId    String?
-  parent      ProductCategory?  @relation("CategoryChildren", fields: [parentId], references: [id], onDelete: SetNull)
+  parent      ProductCategory? @relation("CategoryChildren", fields: [parentId], references: [id], onDelete: SetNull)
 
   name        String
   description String?
@@ -643,18 +625,18 @@ model ProductCategory {
 // ─────────────────────────────────────────────────────────────
 
 model Product {
-  id          String   @id @default(uuid())
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  categoryId  String?
-  category    ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  id         String           @id @default(uuid())
+  tenantId   String
+  tenant     Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  categoryId String?
+  category   ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   sku         String
   name        String
   description String?  @db.Text
   price       Decimal  @db.Decimal(12, 2)
   cost        Decimal  @db.Decimal(12, 2) @default(0)
-  unit        String   @default("un") // un, kg, cx, l…
+  unit        String   @default("un")
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -670,19 +652,18 @@ model Product {
 
 // ─────────────────────────────────────────────────────────────
 // STOCK
-// Saldo atual por produto + loja
 // ─────────────────────────────────────────────────────────────
 
 model Stock {
-  id        String   @id @default(uuid())
+  id        String  @id @default(uuid())
   productId String
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   storeId   String
-  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  store     Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
-  quantity    Decimal @db.Decimal(12, 3) @default(0)
-  minQuantity Decimal @db.Decimal(12, 3) @default(0) // alerta de estoque mínimo
-  maxQuantity Decimal @db.Decimal(12, 3) @default(0) // limite máximo (opcional)
+  quantity    Decimal  @db.Decimal(12, 3) @default(0)
+  minQuantity Decimal  @db.Decimal(12, 3) @default(0)
+  maxQuantity Decimal  @db.Decimal(12, 3) @default(0)
   updatedAt   DateTime @updatedAt
 
   @@unique([productId, storeId])
@@ -691,23 +672,22 @@ model Stock {
 
 // ─────────────────────────────────────────────────────────────
 // STOCK MOVEMENTS
-// Toda entrada e saída de estoque — imutável (append-only)
 // ─────────────────────────────────────────────────────────────
 
 model StockMovement {
-  id            String            @id @default(uuid())
-  productId     String
-  product       Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
-  storeId       String
-  store         Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  userId        String?
-  user          User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  id        String  @id @default(uuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  storeId   String
+  store     Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   type          StockMovementType
-  quantity      Decimal           @db.Decimal(12, 3) // positivo = entrada, negativo = saída
+  quantity      Decimal           @db.Decimal(12, 3)
   unitCost      Decimal           @db.Decimal(12, 2) @default(0)
-  referenceId   String?           // id do NfeImport, Ticket, etc.
-  referenceType String?           // "nfe" | "ticket" | "manual" | "transfer"
+  referenceId   String?
+  referenceType String?
   notes         String?
   createdAt     DateTime          @default(now())
 
@@ -719,24 +699,23 @@ model StockMovement {
 
 // ─────────────────────────────────────────────────────────────
 // NFE IMPORTS
-// NF-e importadas para dar entrada no estoque
 // ─────────────────────────────────────────────────────────────
 
 model NfeImport {
-  id           String    @id @default(uuid())
-  tenantId     String
-  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  storeId      String
-  store        Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  userId       String?
-  user         User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  storeId  String
+  store    Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  userId   String?
+  user     User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  accessKey    String    @unique // chave de acesso da NF-e (44 dígitos)
+  accessKey    String    @unique
   supplierName String
   supplierCnpj String
   totalValue   Decimal   @db.Decimal(12, 2)
   status       NfeStatus @default(PENDING)
-  rawXml       String?   @db.Text // XML completo da NF-e
+  rawXml       String?   @db.Text
   issuedAt     DateTime
   importedAt   DateTime  @default(now())
 
@@ -749,22 +728,21 @@ model NfeImport {
 
 // ─────────────────────────────────────────────────────────────
 // NFE ITEMS
-// Itens da NF-e linkados a produtos do catálogo
 // ─────────────────────────────────────────────────────────────
 
 model NfeItem {
-  id          String    @id @default(uuid())
-  nfeId       String
-  nfe         NfeImport @relation(fields: [nfeId], references: [id], onDelete: Cascade)
-  productId   String?
-  product     Product?  @relation(fields: [productId], references: [id], onDelete: SetNull)
+  id        String    @id @default(uuid())
+  nfeId     String
+  nfe       NfeImport @relation(fields: [nfeId], references: [id], onDelete: Cascade)
+  productId String?
+  product   Product?  @relation(fields: [productId], references: [id], onDelete: SetNull)
 
-  productCode String    // código do produto na NF-e (pode ser diferente do SKU interno)
+  productCode String
   description String
-  ncm         String?   // código NCM
-  quantity    Decimal   @db.Decimal(12, 3)
-  unitPrice   Decimal   @db.Decimal(12, 4)
-  totalPrice  Decimal   @db.Decimal(12, 2)
+  ncm         String?
+  quantity    Decimal @db.Decimal(12, 3)
+  unitPrice   Decimal @db.Decimal(12, 4)
+  totalPrice  Decimal @db.Decimal(12, 2)
 
   @@index([nfeId])
   @@map("nfe_items")
